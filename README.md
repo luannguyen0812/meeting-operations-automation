@@ -1,6 +1,6 @@
 # Meeting Automation Pipeline
 
-A fully automated meeting operations system built in Python. It handles everything around recurring project meetings — from generating agenda templates the night before, to sending Telegram reminders 15 minutes before start, to pulling transcripts after the meeting ends and distributing formatted minutes to the team.
+A fully automated meeting operations system built in Python. It handles everything around recurring project meetings — from generating agenda templates the night before, to sending Telegram reminders 15 minutes before start, to automatically detecting completed transcripts after meetings end and distributing formatted minutes to the team. No manual steps required once the cron jobs are running.
 
 ---
 
@@ -14,23 +14,30 @@ A fully automated meeting operations system built in Python. It handles everythi
               ┌────────────────────────┼──────────────────────┐
               │                        │                       │
               ▼                        ▼                       ▼
-   ┌──────────────────┐   ┌─────────────────────┐  ┌──────────────────────┐
-   │  Night-Before    │   │  Meeting Reminder   │  │   Post-Meeting       │
-   │  Workflow        │   │  (every 5 min cron) │  │   Workflow           │
-   │  (10PM cron)     │   │                     │  │   (manual trigger)   │
-   └────────┬─────────┘   └──────────┬──────────┘  └──────────┬───────────┘
-            │                        │                         │
-            ▼                        ▼                         ▼
-   ┌──────────────────┐   ┌─────────────────────┐  ┌──────────────────────┐
-   │ Generate .docx   │   │  Telegram Bot       │  │  HappyScribe API     │
-   │ agenda templates │   │  "Meeting in 15'"   │  │  (pull transcript)   │
-   └────────┬─────────┘   └─────────────────────┘  └──────────┬───────────┘
-            │                                                  │
-            ▼                                                  ▼
-   ┌──────────────────┐                            ┌──────────────────────┐
-   │  Google Drive    │                            │  Name correction     │
-   │  (upload docs)   │                            │  via team roster     │
-   └──────────────────┘                            └──────────┬───────────┘
+   ┌──────────────────┐   ┌─────────────────────────────────────────────┐
+   │  Night-Before    │   │         Every 5 minutes (cron)              │
+   │  Workflow        │   │                                             │
+   │  (10PM cron)     │   │  ┌──────────────────┐  ┌─────────────────┐ │
+   └────────┬─────────┘   │  │ send_meeting_    │  │ poll_happyscribe│ │
+            │             │  │ reminders.py     │  │ .py             │ │
+            ▼             │  └────────┬─────────┘  └────────┬────────┘ │
+   ┌──────────────────┐   │           │                      │          │
+   │ Generate .docx   │   └───────────┼──────────────────────┼──────────┘
+   │ agenda templates │               │                      │
+   └────────┬─────────┘               ▼                      │ 30–120 min
+            │                ┌─────────────────┐             │ after start
+            ▼                │  Telegram Bot   │             ▼
+   ┌──────────────────┐      │  "Meeting in 15'│  ┌──────────────────────┐
+   │  Google Drive    │      │  Cancellation   │  │  HappyScribe API     │
+   │  (upload docs)   │      │  alerts"        │  │  (automatic_done     │
+   └──────────────────┘      └─────────────────┘  │   transcripts only)  │
+                                                   └──────────┬───────────┘
+                                                              │
+                                                              ▼
+                                                   ┌──────────────────────┐
+                                                   │  Name correction     │
+                                                   │  via team roster     │
+                                                   └──────────┬───────────┘
                                                               │
                                                               ▼
                                                    ┌──────────────────────┐
@@ -52,7 +59,8 @@ A fully automated meeting operations system built in Python. It handles everythi
 
 - **Night-before preparation** — Checks Google Calendar each evening and generates `.docx` agenda templates for tomorrow's project meetings, then uploads them to the correct Google Drive folder per project
 - **15-minute Telegram reminders** — Runs every 5 minutes via cron and fires a Telegram message when a meeting is 15 minutes away; also detects and alerts on last-minute cancellations
-- **Automated meeting minutes** — After each meeting, pulls the HappyScribe transcript, corrects speaker names against the team roster, extracts decisions / action items / blockers, and emails the formatted minutes to all attendees
+- **Automatic transcript polling** — Runs on the same 5-minute cron cycle; starting 30 minutes after each meeting begins (floor) and stopping 2 hours after (ceiling), it polls HappyScribe for a completed transcript. Makes one API call per cycle across all eligible meetings. Only picks up transcripts in `automatic_done` state. Tracks processed meetings in `poll_state.json` to prevent double-sending; state file auto-prunes previous days
+- **Automated meeting minutes** — Once a completed transcript is detected, corrects speaker names against the team roster, extracts decisions / action items / blockers, and emails formatted minutes to all attendees. Can also be triggered manually as a fallback
 - **Multi-project support** — All projects are configured in one place (`config.py`); each project gets its own Drive folder, attendee list, and meeting time
 - **Unrecognized meeting detection** — If a calendar event doesn't match any configured project, it alerts so new projects can be added to the automation
 - **Catch-up guard** — Tracks last successful run so missed nights (e.g. machine was off) can be detected and handled
@@ -184,6 +192,16 @@ python send_meeting_reminders.py
 
 This is designed to be run via cron — see the Cron Setup section below.
 
+### HappyScribe transcript poller
+
+Automatically detects completed transcripts and triggers the post-meeting workflow:
+
+```bash
+python poll_happyscribe.py
+```
+
+Designed to run via cron on the same 5-minute cycle as the reminder script. Checks for eligible meetings (30 min–2 hours after start), polls HappyScribe once per cycle, and runs the post-meeting workflow automatically when a transcript is ready. Logs activity to `poll_happyscribe.log`.
+
 ---
 
 ## Cron Setup
@@ -194,8 +212,9 @@ Add these entries to your crontab (`crontab -e`):
 # Night-before: generate templates at 10PM every weeknight
 0 22 * * 1-5 /usr/bin/python3 /path/to/meeting-automation/workflow_nightbefore.py
 
-# Reminders: check every 5 minutes during work hours
+# Reminders + transcript poller: run every 5 minutes during work hours
 */5 8-18 * * 1-5 /usr/bin/python3 /path/to/meeting-automation/send_meeting_reminders.py
+*/5 8-18 * * 1-5 /usr/bin/python3 /path/to/meeting-automation/poll_happyscribe.py
 ```
 
 ---
@@ -213,6 +232,7 @@ meeting-automation/
 ├── happyscribe.py             # Pull and match transcripts from HappyScribe API
 ├── send_email.py              # Send emails via Zapier webhook or SMTP
 ├── send_meeting_reminders.py  # Telegram reminder bot (runs via cron)
+├── poll_happyscribe.py        # Auto-polls HappyScribe and triggers post-meeting workflow
 ├── catchup_check.py           # Track last successful run, detect missed nights
 ├── workflow_nightbefore.py    # Orchestrates the night-before pipeline
 ├── workflow_postmeeting.py    # Orchestrates the post-meeting pipeline

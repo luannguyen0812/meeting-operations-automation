@@ -6,6 +6,8 @@ reminders.log
 last_run.json
 reminders_cache.json
 sent_reminders.json
+poll_state.json
+poll_happyscribe.log
 
 # Secrets and credentials
 token.json
