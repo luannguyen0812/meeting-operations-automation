@@ -57,3 +57,29 @@ AGENDA_ROWS = [
     ("5", "Upcoming milestones and deliverables", "Project Lead", "5 min"),
     ("6", "Announcements and key updates", "Scrum Master", "5 min"),
 ]
+
+
+def _apply_roster_cache():
+    """Overlay cached attendees/emails from roster_cache.json onto PROJECTS.
+    Hardcoded values in PROJECTS remain as fallback if the cache doesn't exist or fails."""
+    import json
+    cache_path = os.path.join(os.path.dirname(__file__), 'roster_cache.json')
+    if not os.path.exists(cache_path):
+        return
+    try:
+        with open(cache_path) as f:
+            cache = json.load(f)
+        projects_cache = cache.get('projects', {})
+        for project in PROJECTS:
+            cached = projects_cache.get(project['name'])
+            if not cached:
+                continue
+            if cached.get('attendees'):
+                project['attendees'] = cached['attendees']
+            if cached.get('emails'):
+                project['emails'] = cached['emails']
+    except Exception:
+        pass
+
+
+_apply_roster_cache()

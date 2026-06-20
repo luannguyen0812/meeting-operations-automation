@@ -8,6 +8,8 @@ reminders_cache.json
 sent_reminders.json
 poll_state.json
 poll_happyscribe.log
+roster_cache.json
+roster_refresh.log
 
 # Secrets and credentials
 token.json

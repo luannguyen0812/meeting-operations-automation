@@ -215,6 +215,9 @@ Add these entries to your crontab (`crontab -e`):
 # Reminders + transcript poller: run every 5 minutes during work hours
 */5 8-18 * * 1-5 /usr/bin/python3 /path/to/meeting-automation/send_meeting_reminders.py
 */5 8-18 * * 1-5 /usr/bin/python3 /path/to/meeting-automation/poll_happyscribe.py
+
+# Roster cache refresh: every Monday at 8AM ET (well before any meetings)
+0 8 * * 1 /usr/bin/python3 /path/to/meeting-automation/roster.py --refresh-cache
 ```
 
 ---
@@ -228,7 +231,7 @@ meeting-automation/
 ├── calendar_check.py          # Check Google Calendar for tomorrow's meetings
 ├── generate_templates.py      # Create .docx agenda templates
 ├── drive_upload.py            # Upload generated docs to Google Drive
-├── roster.py                  # Download team roster, correct transcript names
+├── roster.py                  # Download team roster, correct transcript names, refresh cache
 ├── happyscribe.py             # Pull and match transcripts from HappyScribe API
 ├── send_email.py              # Send emails via Zapier webhook or SMTP
 ├── send_meeting_reminders.py  # Telegram reminder bot (runs via cron)

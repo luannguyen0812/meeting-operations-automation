@@ -4,6 +4,7 @@
 import io
 import json
 import os
+from datetime import datetime
 from difflib import SequenceMatcher
 
 import openpyxl
@@ -14,6 +15,8 @@ from googleapiclient.discovery import build
 from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 
 TOKEN_PATH = os.path.join(os.path.dirname(__file__), 'token.json')
+ROSTER_CACHE_PATH = os.path.join(os.path.dirname(__file__), 'roster_cache.json')
+LOG_PATH = os.path.join(os.path.dirname(__file__), 'roster_refresh.log')
 SHEET_FILE_ID = os.getenv('TEAM_SHEET_ID')
 
 # Map each project name (from config.py PROJECTS) to the exact tab name in your
@@ -181,14 +184,55 @@ def correct_transcript_names(transcript_text, project_name):
     return corrected, corrections
 
 
-if __name__ == '__main__':
-    wb = download_workbook()
-    roster = get_master_roster(wb)
-    print(f'Master roster: {len(roster)} members\n')
-    for m in roster[:5]:
-        print(f'  {m["full_name"]} ({m["email"]})')
-    print(f'  ... and {len(roster) - 5} more\n')
+def refresh_roster_cache():
+    """Download the spreadsheet once and save attendees + emails per project to roster_cache.json."""
+    def log(msg):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        line = f'[{ts}] {msg}'
+        print(line)
+        try:
+            with open(LOG_PATH, 'a') as f:
+                f.write(line + '\n')
+        except Exception:
+            pass
 
-    for project_name, tab in PROJECT_TAB_MAP.items():
-        members = get_project_members(project_name, wb)
-        print(f'{project_name}: {len(members)} members')
+    log('Starting roster cache refresh...')
+    try:
+        wb = download_workbook()
+        cache = {}
+
+        for project_name in PROJECT_TAB_MAP:
+            members = get_project_members(project_name, wb)
+            if members:
+                cache[project_name] = {
+                    'attendees': [m['full_name'] for m in members if m['full_name']],
+                    'emails': [m['email'] for m in members if m['email']],
+                }
+                log(f'  {project_name}: {len(members)} members cached')
+
+        with open(ROSTER_CACHE_PATH, 'w') as f:
+            json.dump({'updated_at': datetime.now().isoformat(), 'projects': cache}, f, indent=2)
+
+        log(f'Roster cache saved — {len(cache)} projects')
+        return cache
+
+    except Exception as e:
+        log(f'ERROR: {e}')
+        raise
+
+
+if __name__ == '__main__':
+    import sys
+    if '--refresh-cache' in sys.argv:
+        refresh_roster_cache()
+    else:
+        wb = download_workbook()
+        roster = get_master_roster(wb)
+        print(f'Master roster: {len(roster)} members\n')
+        for m in roster[:5]:
+            print(f'  {m["full_name"]} ({m["email"]})')
+        print(f'  ... and {len(roster) - 5} more\n')
+
+        for project_name, tab in PROJECT_TAB_MAP.items():
+            members = get_project_members(project_name, wb)
+            print(f'{project_name}: {len(members)} members')
