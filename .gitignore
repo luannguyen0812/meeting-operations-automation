@@ -5,6 +5,7 @@
 reminders.log
 last_run.json
 reminders_cache.json
+sent_reminders.json
 
 # Secrets and credentials
 token.json
