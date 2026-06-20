@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Logs and state
+reminders.log
+last_run.json
+reminders_cache.json
+
+# Secrets and credentials
+token.json
+credentials.json
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Output
+output/
