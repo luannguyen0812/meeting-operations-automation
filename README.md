@@ -74,7 +74,7 @@ A fully automated meeting operations system built in Python/OpenClaw. It handles
 - A [HappyScribe](https://www.happyscribe.com) account with API access
 - A Telegram bot token (via [@BotFather](https://t.me/botfather))
 - A Zapier account with an Outlook "Send Email" action webhook (or SMTP credentials)
-- Local or VPS OpenClaw setup with LLMs API. Recommend VPS OpenClaw if don't mind spending money on this, if not, local OpenClaw works just fine when having the device open, not on sleep mode or bring shutdown. 
+- Local or VPS OpenClaw setup with LLMs API. Recommend VPS OpenClaw if don't mind spending money on this, if not, local OpenClaw works just fine when having the device open, not on sleep mode or being shutdown. 
 
 ---
 
