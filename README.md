@@ -1,6 +1,6 @@
 # Meeting Automation Pipeline
 
-A fully automated meeting operations system built in Python/OpenClaw. It handles everything around recurring project meetings — from generating agenda templates the night before, to sending Telegram reminders 15 minutes before start, to automatically detecting completed transcripts after meetings end and distributing formatted minutes to the team. No manual steps required once the cron jobs are running.
+A fully automated meeting operations system built in Python. It handles everything around recurring project meetings — from generating agenda templates the night before, to sending Telegram reminders 15 minutes before start, to automatically detecting completed transcripts after meetings end and distributing formatted minutes to the team. No manual steps required once the cron jobs are running.
 
 ---
 
@@ -9,6 +9,7 @@ A fully automated meeting operations system built in Python/OpenClaw. It handles
 ```
                         ┌─────────────────────────────────────────┐
                         │           Google Calendar               │
+                        │    (always checked — never assumed)     │
                         └──────────────┬──────────────────────────┘
                                        │
               ┌────────────────────────┼──────────────────────┐
@@ -22,22 +23,21 @@ A fully automated meeting operations system built in Python/OpenClaw. It handles
             │             │  │ reminders.py     │  │ .py             │ │
             ▼             │  └────────┬─────────┘  └────────┬────────┘ │
    ┌──────────────────┐   │           │                      │          │
-   │ Generate .docx   │   └───────────┼──────────────────────┼──────────┘
-   │ agenda templates │               │                      │
+   │ Calendar-matched │   └───────────┼──────────────────────┼──────────┘
+   │ projects only    │               │                      │
    └────────┬─────────┘               ▼                      │ 30–120 min
             │                ┌─────────────────┐             │ after start
             ▼                │  Telegram Bot   │             ▼
    ┌──────────────────┐      │  "Meeting in 15'│  ┌──────────────────────┐
-   │  Google Drive    │      │  Cancellation   │  │  HappyScribe API     │
-   │  (upload docs)   │      │  alerts"        │  │  (automatic_done     │
-   └──────────────────┘      └─────────────────┘  │   transcripts only)  │
-                                                   └──────────┬───────────┘
-                                                              │
-                                                              ▼
-                                                   ┌──────────────────────┐
-                                                   │  Name correction     │
-                                                   │  via team roster     │
-                                                   └──────────┬───────────┘
+   │  Generate .docx  │      │  Cancellation   │  │  HappyScribe API     │
+   │  agenda templates│      │  alerts"        │  │  (automatic_done     │
+   └────────┬─────────┘      └─────────────────┘  │   transcripts only)  │
+            │                                      └──────────┬───────────┘
+            ▼                                                 │
+   ┌──────────────────┐                            ┌──────────┴───────────┐
+   │  Google Drive    │                            │  Name correction     │
+   │  (upload docs)   │                            │  via team roster     │
+   └──────────────────┘                            └──────────┬───────────┘
                                                               │
                                                               ▼
                                                    ┌──────────────────────┐
@@ -57,10 +57,11 @@ A fully automated meeting operations system built in Python/OpenClaw. It handles
 
 ## Features
 
-- **Night-before preparation** — Checks Google Calendar each evening and generates `.docx` agenda templates for tomorrow's project meetings, then uploads them to the correct Google Drive folder per project
+- **Calendar-driven template generation** — Always queries Google Calendar before generating anything. Only produces templates for meetings that are actually on the calendar that day — never assumes a fixed cadence. Unrecognized events are flagged for review
 - **15-minute Telegram reminders** — Runs every 5 minutes via cron and fires a Telegram message when a meeting is 15 minutes away; also detects and alerts on last-minute cancellations
 - **Automatic transcript polling** — Runs on the same 5-minute cron cycle; starting 30 minutes after each meeting begins (floor) and stopping 2 hours after (ceiling), it polls HappyScribe for a completed transcript. Makes one API call per cycle across all eligible meetings. Only picks up transcripts in `automatic_done` state. Tracks processed meetings in `poll_state.json` to prevent double-sending; state file auto-prunes previous days
 - **Automated meeting minutes** — Once a completed transcript is detected, corrects speaker names against the team roster, extracts decisions / action items / blockers, and emails formatted minutes to all attendees. Can also be triggered manually as a fallback
+- **Self-updating team roster** — Downloads the team spreadsheet every Monday at 8AM and caches attendees/emails per project. All scripts pick up the new roster automatically. Hardcoded values in `config.py` act as a safety net if the cache refresh ever fails
 - **Multi-project support** — All projects are configured in one place (`config.py`); each project gets its own Drive folder, attendee list, and meeting time
 - **Unrecognized meeting detection** — If a calendar event doesn't match any configured project, it alerts so new projects can be added to the automation
 - **Catch-up guard** — Tracks last successful run so missed nights (e.g. machine was off) can be detected and handled
@@ -74,7 +75,6 @@ A fully automated meeting operations system built in Python/OpenClaw. It handles
 - A [HappyScribe](https://www.happyscribe.com) account with API access
 - A Telegram bot token (via [@BotFather](https://t.me/botfather))
 - A Zapier account with an Outlook "Send Email" action webhook (or SMTP credentials)
-- Local or VPS OpenClaw setup with LLMs API. Recommend VPS OpenClaw if don't mind spending money on this, if not, local OpenClaw works just fine when having the device open, not on sleep mode or being shutdown. 
 
 ---
 
@@ -139,13 +139,21 @@ PROJECTS = [
 ]
 ```
 
+### 6. Build the initial roster cache
+
+```bash
+python roster.py --refresh-cache
+```
+
+This downloads the spreadsheet and caches attendees/emails so all scripts are ready before the Monday cron kicks in.
+
 ---
 
 ## Usage
 
 ### Night-before workflow
 
-Generates agenda templates and uploads to Drive for tomorrow's meetings:
+Checks Google Calendar and generates agenda templates only for confirmed meetings:
 
 ```bash
 python workflow_nightbefore.py
@@ -163,9 +171,9 @@ Run for a specific date:
 python workflow_nightbefore.py 2025-08-15
 ```
 
-### Post-meeting minutes
+### Post-meeting minutes (manual fallback)
 
-Run after a meeting ends to pull the transcript and email the team:
+Normally triggered automatically by `poll_happyscribe.py`. Run manually if needed:
 
 ```bash
 python workflow_postmeeting.py "Project Alpha"
@@ -185,23 +193,23 @@ python workflow_postmeeting.py "Project Alpha" "" 2025-08-14
 
 ### Meeting reminders
 
-Send a Telegram message 15 minutes before each calendar event:
-
 ```bash
 python send_meeting_reminders.py
 ```
 
-This is designed to be run via cron — see the Cron Setup section below.
-
 ### HappyScribe transcript poller
-
-Automatically detects completed transcripts and triggers the post-meeting workflow:
 
 ```bash
 python poll_happyscribe.py
 ```
 
-Designed to run via cron on the same 5-minute cycle as the reminder script. Checks for eligible meetings (30 min–2 hours after start), polls HappyScribe once per cycle, and runs the post-meeting workflow automatically when a transcript is ready. Logs activity to `poll_happyscribe.log`.
+Both reminders and poller are designed for cron — see Cron Setup below.
+
+### Roster cache refresh
+
+```bash
+python roster.py --refresh-cache
+```
 
 ---
 
@@ -227,12 +235,13 @@ Add these entries to your crontab (`crontab -e`):
 
 ```
 meeting-automation/
-├── config.py                  # Project list, agenda rows, env var loading
+├── config.py                  # Project list, agenda rows, env var loading, roster cache overlay
 ├── google_auth.py             # One-time OAuth flow for Google APIs
-├── calendar_check.py          # Check Google Calendar for tomorrow's meetings
-├── generate_templates.py      # Create .docx agenda templates
+├── calendar_check.py          # Query Google Calendar — only confirmed events trigger generation
+├── generate_templates.py      # Create .docx agenda templates for calendar-matched projects
 ├── drive_upload.py            # Upload generated docs to Google Drive
 ├── roster.py                  # Download team roster, correct transcript names, refresh cache
+├── discover_projects.py       # Fuzzy-match calendar events to known projects
 ├── happyscribe.py             # Pull and match transcripts from HappyScribe API
 ├── send_email.py              # Send emails via Zapier webhook or SMTP
 ├── send_meeting_reminders.py  # Telegram reminder bot (runs via cron)
@@ -266,5 +275,6 @@ meeting-automation/
 ## Security Notes
 
 - Never commit `.env` or `token.json` — both are in `.gitignore`
-- `token.json` contains your Google OAuth refresh token; treat it like a password
+- `token.json` is generated by `google_auth.py` and must be created locally on each machine
 - The `.env.example` file is safe to commit — it contains no real credentials
+- Runtime state files (`roster_cache.json`, `poll_state.json`, etc.) are gitignored — they live only on the machine running the cron jobs

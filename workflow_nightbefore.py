@@ -32,6 +32,7 @@ def cleanup_local(date_str):
 
 def run(target_date=None, force=False):
     alerts = []
+    matched_projects = None
 
     if target_date is None:
         should, projects, unmatched, tomorrow = should_generate_templates()
@@ -51,6 +52,7 @@ def run(target_date=None, force=False):
             return {'status': 'skipped', 'alerts': alerts}
 
         target_date = tomorrow
+        matched_projects = projects
         print(f'Found {len(projects)} meetings tomorrow:')
         for p in projects:
             print(f'  - {p["name"]}')
@@ -66,7 +68,7 @@ def run(target_date=None, force=False):
 
     try:
         print('--- Step 1: Generate .docx templates ---')
-        generate_templates()
+        generate_templates(projects_filter=matched_projects)
 
         print('\n--- Step 2: Upload to Google Drive ---')
         results = upload_to_drive()

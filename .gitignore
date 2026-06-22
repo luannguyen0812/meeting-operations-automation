@@ -1,25 +1,27 @@
 # macOS
 .DS_Store
 
-# Logs and state
-reminders.log
-last_run.json
-reminders_cache.json
-sent_reminders.json
-poll_state.json
-poll_happyscribe.log
-roster_cache.json
-roster_refresh.log
-
-# Secrets and credentials
+# Secrets and credentials — never commit these
+.env
 token.json
 credentials.json
-.env
+
+# Runtime state and cache
+reminders_cache.json
+sent_reminders.json
+last_run.json
+poll_state.json
+roster_cache.json
+
+# Logs
+reminders.log
+poll_happyscribe.log
+roster_refresh.log
 
 # Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Output
+# Generated output
 output/

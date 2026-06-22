@@ -10,9 +10,9 @@ from email import encoders
 
 from config import PROJECTS
 
-SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.yourprovider.com')
+SMTP_HOST = os.getenv('SMTP_HOST', 'mail.intrastack.com')
 SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-SMTP_USER = os.getenv('SMTP_USER', 'your.email@yourcompany.com')
+SMTP_USER = os.getenv('SMTP_USER', 'luan.nguyen@intrastack.com')
 SMTP_PASS = os.getenv('SMTP_PASS', '')
 
 
@@ -51,17 +51,21 @@ def send_minutes_email(to_emails, project_name, date_str, body_text, attachment_
 
 def test_smtp():
     """Send a test email to verify SMTP works."""
+    from dotenv import load_dotenv
+    env_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env.intrastack')
+    load_dotenv(env_path)
+
     global SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
-    SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.yourprovider.com')
+    SMTP_HOST = os.getenv('SMTP_HOST', 'mail.intrastack.com')
     SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
     SMTP_USER = os.getenv('SMTP_USER')
     SMTP_PASS = os.getenv('SMTP_PASS')
 
     return send_minutes_email(
-        to_emails=[SMTP_USER],
+        to_emails=['minhluan081294@gmail.com'],
         project_name='Test Project',
-        date_str='2026-06-17',
-        body_text='This is a test email. If you received this, SMTP is working correctly.',
+        date_str='06.17.2026',
+        body_text='This is a test email from Sparky. If you got this, SMTP is working.',
     )
 
 

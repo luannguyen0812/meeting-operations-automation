@@ -42,17 +42,28 @@ def get_credentials():
     return creds
 
 
-def find_archive_subfolder(service, parent_folder_id):
-    """Find or skip the 'Previous Meeting Agendas and Minutes templates' subfolder."""
+def find_or_create_archive_subfolder(service, parent_folder_id):
+    """Find or create the 'Previous Meeting Agendas and Minutes' subfolder."""
     query = (
         f"'{parent_folder_id}' in parents "
         f"and mimeType='application/vnd.google-apps.folder' "
-        f"and name='Previous Meeting Agendas and Minutes templates' "
+        f"and name='Previous Meeting Agendas and Minutes' "
         f"and trashed=false"
     )
     results = service.files().list(q=query, fields='files(id, name)').execute()
     files = results.get('files', [])
-    return files[0]['id'] if files else None
+    if files:
+        return files[0]['id']
+    folder = service.files().create(
+        body={
+            'name': 'Previous Meeting Agendas and Minutes',
+            'mimeType': 'application/vnd.google-apps.folder',
+            'parents': [parent_folder_id],
+        },
+        fields='id',
+    ).execute()
+    print(f'  Created archive subfolder.')
+    return folder['id']
 
 
 def archive_old_templates(service, parent_folder_id, archive_folder_id, date_str):
@@ -80,9 +91,26 @@ def archive_old_templates(service, parent_folder_id, archive_folder_id, date_str
         print(f'  Archived: {f["name"]}')
 
 
+def find_existing_file(service, filename, folder_id):
+    """Return the first file matching name in folder, or None."""
+    query = (
+        f"'{folder_id}' in parents "
+        f"and name='{filename}' "
+        f"and trashed=false"
+    )
+    results = service.files().list(q=query, fields='files(id, name, webViewLink)').execute()
+    files = results.get('files', [])
+    return files[0] if files else None
+
+
 def upload_file(service, file_path, folder_id):
-    """Upload a .docx file to a Google Drive folder without auto-conversion."""
+    """Upload a .docx file to Google Drive, skipping if it already exists."""
     filename = os.path.basename(file_path)
+
+    existing = find_existing_file(service, filename, folder_id)
+    if existing:
+        print(f'  Skipped (already exists): {filename}')
+        return existing
 
     file_metadata = {
         'name': filename,
@@ -131,7 +159,7 @@ def main():
         folder_id = project['drive_folder_id']
 
         # Archive old templates
-        archive_id = find_archive_subfolder(service, folder_id)
+        archive_id = find_or_create_archive_subfolder(service, folder_id)
         if archive_id:
             archive_old_templates(service, folder_id, archive_id, date_str)
 

@@ -15,15 +15,22 @@ from googleapiclient.discovery import build
 from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 
 TOKEN_PATH = os.path.join(os.path.dirname(__file__), 'token.json')
-ROSTER_CACHE_PATH = os.path.join(os.path.dirname(__file__), 'roster_cache.json')
-LOG_PATH = os.path.join(os.path.dirname(__file__), 'roster_refresh.log')
-SHEET_FILE_ID = os.getenv('TEAM_SHEET_ID')
+SHEET_FILE_ID = os.getenv('TEAM_SHEET_ID', '1C6tp0z0K6xF50KJMNwqpahHnpH8ajxhB')
 
-# Map each project name (from config.py PROJECTS) to the exact tab name in your
-# Google Sheet roster. Set to None if a project has no dedicated roster tab.
 PROJECT_TAB_MAP = {
-    'Example Project Alpha': 'Example Project Alpha',
-    'Example Project Beta': 'Example Project Beta',
+    'Intrastack Website Project': 'Intrastack Website Project',
+    'AI Meeting Transcriber Platform': 'AI Meeting Transcriber Platform',
+    'Tekstack Academy Project': 'Tekstack Academy Portal',
+    'Dragon Point of Sale System': 'Point of Sale Systems - Cloud',
+    'Agentic AI Global News Platform': 'Automated Viet Song News Portal',
+    'Openclaw & Security': 'Openclaw & Security Automated H',
+    'Multi Cloud Security Assessment': 'Multi Cloud Security Assessment',
+    'BidOps AI': 'BidOps AI Resource',
+    'DevOps/Cloud Automation': 'DevOpsCloud',
+    'Customize Odoo CRM': 'Odoo Business Suites Resource',
+    'AI Staffing & Automation Platform': None,
+    'IntracodeX Platform': None,
+    'Moodle LMS Project': None,
 }
 
 
@@ -184,55 +191,92 @@ def correct_transcript_names(transcript_text, project_name):
     return corrected, corrections
 
 
+ROSTER_CACHE_PATH = os.path.join(os.path.dirname(__file__), 'roster_cache.json')
+LUAN_EMAIL = 'luan.nguyen@intrastack.com'
+
+CHECKBOX_COL_TO_PROJECT = {
+    'BidOps AI': 'BidOps AI',
+    'Tekstack  & LMS Portal': 'Tekstack Academy Project',
+    'Tekstack & LMS Portal': 'Tekstack Academy Project',
+    'Point of Sale': 'Dragon Point of Sale System',
+    'Openclaw + Kali Linux': 'Openclaw & Security',
+    'Multi Cloud Security Scanner': 'Multi Cloud Security Assessment',
+    'AI Meeting Transcriber': 'AI Meeting Transcriber Platform',
+    'Intrastack Website': 'Intrastack Website Project',
+    'Customize Odoo CRM': 'Customize Odoo CRM',
+    'Agentic AI Global News Platform': 'Agentic AI Global News Platform',
+    'AI Staffing & Automation Platform': 'AI Staffing & Automation Platform',
+    'IntracodeX Platform': 'IntracodeX Platform',
+    'Moodle LMS Project Team': 'Moodle LMS Project',
+}
+
+
 def refresh_roster_cache():
-    """Download the spreadsheet once and save attendees + emails per project to roster_cache.json."""
-    def log(msg):
-        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        line = f'[{ts}] {msg}'
-        print(line)
-        try:
-            with open(LOG_PATH, 'a') as f:
-                f.write(line + '\n')
-        except Exception:
-            pass
+    """Read 'Teams & Projects' tab checkboxes to build project membership cache."""
+    wb = download_workbook()
+    ws = wb['Teams & Projects']
 
-    log('Starting roster cache refresh...')
-    try:
-        wb = download_workbook()
-        cache = {}
+    headers = []
+    for cell in next(ws.iter_rows(min_row=1, max_row=1)):
+        headers.append((cell.column - 1, str(cell.value).strip() if cell.value else ''))
 
-        for project_name in PROJECT_TAB_MAP:
-            members = get_project_members(project_name, wb)
-            if members:
-                cache[project_name] = {
-                    'attendees': [m['full_name'] for m in members if m['full_name']],
-                    'emails': [m['email'] for m in members if m['email']],
-                }
-                log(f'  {project_name}: {len(members)} members cached')
+    col_map = {}
+    for idx, header in headers:
+        project_name = CHECKBOX_COL_TO_PROJECT.get(header)
+        if project_name:
+            col_map[idx] = project_name
 
-        with open(ROSTER_CACHE_PATH, 'w') as f:
-            json.dump({'updated_at': datetime.now().isoformat(), 'projects': cache}, f, indent=2)
+    cache = {p: {'attendees': [], 'emails': []} for p in CHECKBOX_COL_TO_PROJECT.values()}
 
-        log(f'Roster cache saved — {len(cache)} projects')
-        return cache
+    name_col = 0
+    email_col = 3
 
-    except Exception as e:
-        log(f'ERROR: {e}')
-        raise
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        full_name = str(row[name_col]).strip() if row[name_col] else ''
+        email = str(row[email_col]).strip() if len(row) > email_col and row[email_col] else ''
+        if not full_name:
+            continue
+
+        for idx, project_name in col_map.items():
+            if len(row) > idx and row[idx] is True:
+                cache[project_name]['attendees'].append(full_name)
+                if email:
+                    cache[project_name]['emails'].append(email)
+
+    for project_name in cache:
+        if LUAN_EMAIL not in cache[project_name]['emails']:
+            cache[project_name]['emails'].append(LUAN_EMAIL)
+
+    with open(ROSTER_CACHE_PATH, 'w') as f:
+        json.dump({'refreshed_at': datetime.now().isoformat(), 'projects': cache}, f, indent=2)
+
+    for p, data in cache.items():
+        print(f'  {p}: {len(data["attendees"])} members')
+    print(f'Roster cache refreshed: {len(cache)} projects')
+    return cache
+
+
+def load_roster_cache():
+    """Load cached roster data. Returns None if cache doesn't exist."""
+    if not os.path.exists(ROSTER_CACHE_PATH):
+        return None
+    with open(ROSTER_CACHE_PATH) as f:
+        return json.load(f).get('projects', {})
 
 
 if __name__ == '__main__':
     import sys
-    if '--refresh-cache' in sys.argv:
+    if len(sys.argv) > 1 and sys.argv[1] == '--refresh-cache':
         refresh_roster_cache()
-    else:
-        wb = download_workbook()
-        roster = get_master_roster(wb)
-        print(f'Master roster: {len(roster)} members\n')
-        for m in roster[:5]:
-            print(f'  {m["full_name"]} ({m["email"]})')
-        print(f'  ... and {len(roster) - 5} more\n')
+        sys.exit(0)
 
-        for project_name, tab in PROJECT_TAB_MAP.items():
-            members = get_project_members(project_name, wb)
-            print(f'{project_name}: {len(members)} members')
+    wb = download_workbook()
+    roster = get_master_roster(wb)
+    print(f'Master roster: {len(roster)} members\n')
+    for m in roster[:5]:
+        print(f'  {m["full_name"]} ({m["email"]})')
+    print(f'  ... and {len(roster) - 5} more\n')
+
+    for project_name, tab in PROJECT_TAB_MAP.items():
+        members = get_project_members(project_name, wb)
+        print(f'{project_name}: {len(members)} members')

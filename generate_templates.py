@@ -236,7 +236,7 @@ def create_minutes(project, meeting_date, next_meeting_date):
     return doc
 
 
-def main():
+def main(projects_filter=None):
     if len(sys.argv) > 1:
         target_date = datetime.strptime(sys.argv[1], '%Y-%m-%d').date()
     else:
@@ -249,7 +249,9 @@ def main():
 
     generated = []
 
-    for project in PROJECTS:
+    projects_to_generate = projects_filter if projects_filter is not None else PROJECTS
+
+    for project in projects_to_generate:
         agenda_filename = f'Meeting Agenda {date_str}.docx'
         minutes_filename = f'Meeting Minutes {date_str}.docx'
 
