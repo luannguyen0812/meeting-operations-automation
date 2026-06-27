@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.intrastack.pollhappyscribe</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/luannguyen/.openclaw/workspace/scripts/meeting-automation/poll_happyscribe.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/luannguyen/.openclaw/workspace/scripts/meeting-automation</string>
+
+    <!-- Run every 5 minutes -->
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <!-- Run on load so it picks up any missed meetings immediately -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/luannguyen/.openclaw/workspace/scripts/meeting-automation/poll_happyscribe.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/luannguyen/.openclaw/workspace/scripts/meeting-automation/poll_happyscribe.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin</string>
+        <key>TZ</key>
+        <string>America/New_York</string>
+        <key>HOME</key>
+        <string>/Users/luannguyen</string>
+    </dict>
+</dict>
+</plist>
