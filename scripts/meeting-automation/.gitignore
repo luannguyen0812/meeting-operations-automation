@@ -1,0 +1,26 @@
+# Logs and state
+*.log
+last_run.json
+reminders_cache.json
+sent_reminders.json
+poll_state.json
+roster_cache.json
+
+# Secrets and credentials
+token.json
+credentials.json
+service-account.json
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Output / generated files
+output/
+test_run.txt
+
+# macOS
+.DS_Store

@@ -1,27 +1,39 @@
-# macOS
-.DS_Store
-
-# Secrets and credentials — never commit these
+# Credentials and secrets
 .env
+.env.*
+*.token
 token.json
 credentials.json
+service-account.json
 
-# Runtime state and cache
-reminders_cache.json
-sent_reminders.json
-last_run.json
-poll_state.json
-roster_cache.json
+# macOS
+.DS_Store
+**/.DS_Store
 
-# Logs
-reminders.log
-poll_happyscribe.log
-roster_refresh.log
-
-# Python cache
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Generated output
+# Obsidian / Canvas (personal)
+.obsidian/
+*.canvas
+*.base
+
+# OpenClaw internal
+.openclaw/
+.clawhub/
+
+# Logs
+*.log
+
+# Scratch
+Untitled*
+
+# Scripts / runtime state
 output/
+last_run.json
+poll_state.json
+sent_reminders.json
+*_cache.json
+test_run.txt
