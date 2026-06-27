@@ -30,6 +30,22 @@ __pycache__/
 # Scratch
 Untitled*
 
+# Workspace-level (not part of this repo)
+.learnings/
+directives/
+memory/
+second-brain/
+skills/
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+MEMORY.md
+SOUL.md
+TOOLS.md
+USER.md
+openclaw-workspace-state.json
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md
+
 # Scripts / runtime state
 output/
 last_run.json
